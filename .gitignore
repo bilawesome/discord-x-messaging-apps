@@ -1,0 +1,8 @@
+# OS directories
+.DS_Store
+
+# package directories
+node_modules
+
+# sensitive dev API credentials
+.env
