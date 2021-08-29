@@ -2,94 +2,80 @@ if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
 }
 
-const { Client, Intents } = require('discord.js');
-const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES],
-});
+const Telegraf = require('telegraf').Telegraf;
+const axios = require('axios');
+
 const DISCORD_API_BASE_URL = 'https://discord.com/api/v8';
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_TEST_WEBHOOK_ID = process.env.DISCORD_TEST_WEBHOOK_ID;
 const DISCORD_TEST_WEBHOOK_TOKEN = process.env.DISCORD_TEST_WEBHOOK_TOKEN;
 
-const prefix = '-';
-
-client.once('ready', () => {
-    console.log('Ready!');
-});
-
-client.on('message', message => {
-    if (!message.content.startsWith(prefix) || message.author.bot) {
-        return;
-    }
-
-    console.log(JSON.stringify(message, null, 4));
-
-    const args = message.content.slice(prefix.length).split(/ +/);
-    const command = args.shift().toLowerCase();
-
-    if (command === 'ping') {
-        message.channel.send('pong!');
-    }
-})
-
-client.login(DISCORD_BOT_TOKEN)
-
-
-
-
-
-// TELEGRAM
-
-const Telegraf = require('telegraf').Telegraf;
-const axios = require('axios');
+const TELEGRAM_API_URL = 'https://api.telegram.org';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 bot.start((context) => {
-    context.reply('bilawesome bot has started!');
-})
-
-bot.help((context) => {
-    context.reply('This bot can perform the following commands:');
+    context.reply('DAO Discord x Telegram Bot has started!');
 });
 
-bot.on('sticker', (context) => {
-    context.reply('Cool sticker!');
-})
+bot.help((context) => {
+    context.reply('This bot does not perform any commands as of now.');
+});
 
-bot.hears('hello', (context) => {
-    context.reply('Hello back to u!');
-})
+bot.on('photo', async (context) => {
+    console.log(JSON.stringify(context, null, 4));
 
-bot.command('say', (context) => {
-    msg = context.message.text;
-    msgArray = msg.split(' ');
-    msgArray.shift();
-    newMsg = msgArray.join(' ');
-    context.reply(newMsg);
-})
+    photoCount = context.message.photo.length;
+    thumbnailPhoto = context.message.photo[0];
+    actualPhoto = context.message.photo[photoCount - 1];
+    thumbnailPhotoRes = await axios.get(
+        `${TELEGRAM_API_URL}/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${thumbnailPhoto.file_id}`
+    );
+    actualPhotoRes = await axios.get(
+        `${TELEGRAM_API_URL}/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${actualPhoto.file_id}`
+    );
 
-bot.command('fortune', (context) => {
-    url = 'http://yerkee.com/api/fortune';
-    axios.get(url)
-        .then(
-            (res) => {
-                console.log(res.data.fortune);
-                context.reply(res.data.fortune);
-            }
-        );
-})
+    thumbnailPhotoUrl = `${TELEGRAM_API_URL}/file/bot${TELEGRAM_BOT_TOKEN}/${thumbnailPhotoRes.data.result.file_path}`;
+    actualPhotoUrl = `${TELEGRAM_API_URL}/file/bot${TELEGRAM_BOT_TOKEN}/${actualPhotoRes.data.result.file_path}`;
 
-bot.command('discord_test', (context) => {
-    console.log(context);
-    url = `${DISCORD_API_BASE_URL}/webhooks/${DISCORD_TEST_WEBHOOK_ID}/${DISCORD_TEST_WEBHOOK_TOKEN}`;
-    msg = context.message.text;
-    msgArray = msg.split(' ');
-    msgArray.shift();
-    newMsg = msgArray.join(' ');
     data = {
-        content: `Received message from Telegram: ${newMsg}`
+        content: `**@${context.from.username} sent an image to ${context.chat.title}:**`,
+        embeds: [
+            {
+                type: 'image',
+                url: actualPhotoUrl,
+                title: `Image sent by @${context.from.username} to ${context.chat.title}`,
+                description: context.message.caption,
+                thumbnail: {
+                    url: actualPhotoUrl
+                }
+            }
+        ]
+    }
+
+    axios.post(
+        `${DISCORD_API_BASE_URL}/webhooks/${DISCORD_TEST_WEBHOOK_ID}/${DISCORD_TEST_WEBHOOK_TOKEN}`,
+        JSON.stringify(data),
+        {
+            headers: {
+                'Authorization': `Bot ${DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json',
+                'Content-Disposition': 'filename'
+            },
+        })
+})
+
+bot.on('message', (context) => {
+    console.log(JSON.stringify(context, null, 4));
+
+    if (!context.message.text) {
+        return;
+    }
+    url = `${DISCORD_API_BASE_URL}/webhooks/${DISCORD_TEST_WEBHOOK_ID}/${DISCORD_TEST_WEBHOOK_TOKEN}`;
+    data = {
+        content: `**@${context.from.username} sent a new message to ${context.chat.title}:**\n>>> ${context.message.text}`,
     }
 
     axios.post(
@@ -103,4 +89,12 @@ bot.command('discord_test', (context) => {
         })
 })
 
+// bot.hears('hello', (context) => {
+//     context.reply('Hello back to u!');
+// })
+
 bot.launch();
+
+module.exports = {
+    bot
+}
